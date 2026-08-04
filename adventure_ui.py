@@ -245,38 +245,27 @@ class NextStageView(discord.ui.View):
             pass
         return False
 
-    async def _process_walk(self, interaction: discord.Interaction):
-        try:
-            next_stage_num = self.cat_data.get("stage", 1)
-            new_battle_view = AdventureView(author=self.author, user_id=self.user_id, cat_data=self.cat_data, stage=next_stage_num)
-            upcoming_monster = new_battle_view.monster
-            bg_url = upcoming_monster.get("bg_image", "https://images.unsplash.com/photo-1448375240586-882707db888b?q=80&w=1000")
-
-            # 1. 탐사 시작 렌더링
-            walk_embed = discord.Embed(
-                title=f"🚶 Stage 1-{next_stage_num} 정글 탐사 중...",
-                description=f"🐾 **{self.cat_data['name']}**가 울창한 정글 속으로 걸어가는 중...",
-                color=discord.Color.light_grey()
-            )
-            walk_embed.set_image(url=bg_url)
-
-            if not interaction.response.is_done():
-                await interaction.response.edit_message(embed=walk_embed, view=None)
-            else:
-                await interaction.message.edit(embed=walk_embed, view=None)
-
-            await asyncio.sleep(1.0)
-
-            # 2. 바로 전투 화면으로 편집 전환 (멈춤 현상 완벽 방지)
-            embed = new_battle_view.create_battle_embed(description=f"⚔️ **{upcoming_monster['name']}**이(가) 나타났습니다!")
-            await interaction.message.edit(embed=embed, view=new_battle_view)
-
-        except Exception as e:
-            print(f"탐사 진행 중 에러 발생: {e}")
-
     async def trigger_walk(self, interaction: discord.Interaction):
-        # 비동기 백그라운드 태스크로 연동하여 인터렉션 응답 락 현상을 완벽 방지
-        asyncio.create_task(self._process_walk(interaction))
+        # 1. 3초 타임아웃 방지를 위해 먼저 메시지 수정 처리(Defer 역할)
+        next_stage_num = self.cat_data.get("stage", 1)
+        new_battle_view = AdventureView(author=self.author, user_id=self.user_id, cat_data=self.cat_data, stage=next_stage_num)
+        upcoming_monster = new_battle_view.monster
+        bg_url = upcoming_monster.get("bg_image", "https://images.unsplash.com/photo-1448375240586-882707db888b?q=80&w=1000")
+
+        walk_embed = discord.Embed(
+            title=f"🚶 Stage 1-{next_stage_num} 정글 탐사 중...",
+            description=f"🐾 **{self.cat_data['name']}**가 울창한 정글 속으로 걸어가는 중...",
+            color=discord.Color.light_grey()
+        )
+        walk_embed.set_image(url=bg_url)
+
+        # 바로 상호작용 응답 전달 (3초 에러 완벽 차단)
+        await interaction.response.edit_message(embed=walk_embed, view=None)
+
+        # 2. 1초 연출 후 전투 화면으로 업데이트
+        await asyncio.sleep(1.0)
+        embed = new_battle_view.create_battle_embed(description=f"⚔️ **{upcoming_monster['name']}**이(가) 나타났습니다!")
+        await interaction.message.edit(embed=embed, view=new_battle_view)
 
     @discord.ui.button(label="🧭 다음 스테이지 도전", style=discord.ButtonStyle.success)
     async def next_stage(self, interaction: discord.Interaction, button: discord.ui.Button):
